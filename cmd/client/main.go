@@ -21,11 +21,12 @@ func main() {
 	}
 	defer conn.Close()
 	fmt.Println("Successfully connected to RabbitMQ!")
+
 	userName, err := gamelogic.ClientWelcome()
 	if err != nil {
 		log.Fatalf("could not get user: %v", err)
 	}
-	_, _, err = pubsub.DeclareAndBind(
+	_, queue, err := pubsub.DeclareAndBind(
 		conn,
 		routing.ExchangePerilDirect,
 		"pause."+userName,
@@ -35,6 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not declare and bind the client queue: %v", err)
 	}
+	fmt.Printf("Queue %v declared and bound!\n", queue.Name)
 
 	gameState := gamelogic.NewGameState(userName)
 	for {

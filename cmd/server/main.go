@@ -20,6 +20,19 @@ func main() {
 	}
 	defer conn.Close()
 	fmt.Println("Successfully connected to RabbitMQ!")
+
+	_, queue, err := pubsub.DeclareAndBind(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*",
+		pubsub.QueueDurable,
+	)
+	if err != nil {
+		log.Fatalf("could not declare and bind queue: %v", err)
+	}
+	fmt.Printf("Queue %v declared and bound!\n", queue.Name)
+
 	gamelogic.PrintServerHelp()
 	for {
 		input := gamelogic.GetInput()
