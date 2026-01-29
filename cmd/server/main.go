@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -18,22 +20,52 @@ func main() {
 	}
 	defer conn.Close()
 	fmt.Println("Successfully connected to RabbitMQ!")
+	gamelogic.PrintServerHelp()
+	for {
+		input := gamelogic.GetInput()
+		if len(input) == 0 {
+			continue
+		}
+		firstWord := strings.ToLower(input[0])
+		switch firstWord {
+		case "pause":
+			err = sendMessage(conn, routing.PauseKey)
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Println("Pause message sent!")
+		case "resume":
+			err = sendMessage(conn, "resume")
+			if err != nil {
+				log.Fatal(err)
+			}
+			log.Println("Resume message sent!")
+		case "quit":
+			log.Println("Quitting!")
+			return
+		default:
+			log.Println("Unrecognized command.")
+		}
 
+	}
+}
+
+func sendMessage(conn *amqp.Connection, key string) error {
 	publishCh, err := conn.Channel()
 	if err != nil {
-		log.Fatalf("could not create channel: %v", err)
+		return fmt.Errorf("could not create channel: %v", err)
 	}
-
+	isPaused := key == routing.PauseKey
 	err = pubsub.PublishJson(
 		publishCh,
 		routing.ExchangePerilDirect,
 		routing.PauseKey,
 		routing.PlayingState{
-			IsPaused: true,
+			IsPaused: isPaused,
 		},
 	)
 	if err != nil {
-		log.Fatalf("failed to publish to channel: %v", err)
+		return fmt.Errorf("failed to publish to channel: %v", err)
 	}
-	fmt.Println("Pause message sent!")
+	return nil
 }
