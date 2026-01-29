@@ -11,21 +11,21 @@ import (
 
 func main() {
 	fmt.Println("Starting Peril server...")
-	connection := "amqp://guest:guest@localhost:5672/"
-	amqpConnection, err := amqp.Dial(connection)
+	rabbitConnString := "amqp://guest:guest@localhost:5672/"
+	conn, err := amqp.Dial(rabbitConnString)
 	if err != nil {
 		log.Fatalf("could not connect to RabbitMQ: %v", err)
 	}
-	defer amqpConnection.Close()
+	defer conn.Close()
 	fmt.Println("Successfully connected to RabbitMQ!")
 
-	conCh, err := amqpConnection.Channel()
+	publishCh, err := conn.Channel()
 	if err != nil {
 		log.Fatalf("could not create channel: %v", err)
 	}
 
 	err = pubsub.PublishJson(
-		conCh,
+		publishCh,
 		routing.ExchangePerilDirect,
 		routing.PauseKey,
 		routing.PlayingState{
