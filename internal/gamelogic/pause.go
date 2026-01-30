@@ -7,6 +7,7 @@ import (
 )
 
 func (gs *GameState) HandlePause(ps routing.PlayingState) {
+	fmt.Println("handle pause!!!!")
 	defer fmt.Println("------------------------")
 	fmt.Println()
 	if ps.IsPaused {

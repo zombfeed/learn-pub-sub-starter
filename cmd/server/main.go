@@ -21,12 +21,18 @@ func main() {
 	defer conn.Close()
 	fmt.Println("Successfully connected to RabbitMQ!")
 
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatal("could not create channel: %v", err)
+	}
+	defer ch.Close()
+
 	_, queue, err := pubsub.DeclareAndBind(
 		conn,
-		routing.ExchangePerilTopic,
+		routing.ExchangePerilDirect,
 		routing.GameLogSlug,
 		routing.GameLogSlug+".*",
-		pubsub.QueueDurable,
+		pubsub.SimpleQueueDurable,
 	)
 	if err != nil {
 		log.Fatalf("could not declare and bind queue: %v", err)
@@ -69,7 +75,8 @@ func sendMessage(conn *amqp.Connection, key string) error {
 		return fmt.Errorf("could not create channel: %v", err)
 	}
 	isPaused := key == routing.PauseKey
-	err = pubsub.PublishJson(
+
+	err = pubsub.PublishJSON(
 		publishCh,
 		routing.ExchangePerilDirect,
 		routing.PauseKey,
