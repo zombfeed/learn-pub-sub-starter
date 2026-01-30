@@ -27,6 +27,30 @@ func main() {
 	}
 	defer ch.Close()
 
+	err = ch.ExchangeDeclare(
+		routing.ExchangePerilDirect,
+		"direct",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Fatalf("could not declare exchange: %v", err)
+	}
+	err = ch.ExchangeDeclare(
+		routing.ExchangePerilTopic,
+		"topic",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Fatalf("could not declare exchange: %v", err)
+	}
 	_, queue, err := pubsub.DeclareAndBind(
 		conn,
 		routing.ExchangePerilDirect,

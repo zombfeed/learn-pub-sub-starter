@@ -26,7 +26,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not get user: %v", err)
 	}
-
+	publishCh, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("could not create channel: %v", err)
+	}
 	gameState := gamelogic.NewGameState(userName)
 	err = pubsub.SubscribeJSON(
 		conn,
@@ -37,9 +40,20 @@ func main() {
 		handlerPause(gameState),
 	)
 	if err != nil {
-		log.Fatalf("could not declare and bind the client queue: %v", err)
+		log.Fatalf("could not subscribe to pause: %v", err)
 	}
 
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.ArmyMovesPrefix+"."+gameState.GetUsername(),
+		routing.ArmyMovesPrefix+".*",
+		pubsub.SimpleQueueTransient,
+		handlerMove(gameState),
+	)
+	if err != nil {
+		log.Fatalf("could not subscribe to army moves: %v", err)
+	}
 	for {
 		input := gamelogic.GetInput()
 		if len(input) == 0 {
@@ -47,22 +61,25 @@ func main() {
 		}
 		switch strings.ToLower(input[0]) {
 		case "spawn":
-			if len(input) != 3 {
-				log.Println("invalid command")
-				continue
-			}
 			if err = gameState.CommandSpawn(input); err != nil {
 				log.Println("invalid command")
 			}
 		case "move":
-			if len(input) != 3 {
-				log.Println("invalid command")
-				continue
-			}
-			_, err := gameState.CommandMove(input)
+			move, err := gameState.CommandMove(input)
 			if err != nil {
 				log.Println("invalid command")
 			}
+			err = pubsub.PublishJSON(
+				publishCh,
+				routing.ExchangePerilTopic,
+				routing.ArmyMovesPrefix+"."+move.Player.Username,
+				move,
+			)
+			if err != nil {
+				log.Printf("error: %v", err)
+				continue
+			}
+			fmt.Printf("Moved %v units to %s\n", len(move.Units), move.ToLocation)
 		case "status":
 			gameState.CommandStatus()
 		case "help":
@@ -76,4 +93,25 @@ func main() {
 			log.Println("invalid command")
 		}
 	}
+}
+
+func sendMessage(conn *amqp.Connection, key string) error {
+	publishCh, err := conn.Channel()
+	if err != nil {
+		return fmt.Errorf("could not create channel: %v", err)
+	}
+	isPaused := key == routing.PauseKey
+
+	err = pubsub.PublishJSON(
+		publishCh,
+		routing.ExchangePerilDirect,
+		routing.PauseKey,
+		routing.PlayingState{
+			IsPaused: isPaused,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to publish to channel: %v", err)
+	}
+	return nil
 }
