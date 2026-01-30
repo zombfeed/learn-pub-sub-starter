@@ -62,7 +62,7 @@ func SubscribeJSON[T any](
 			case NackRequeue:
 				msg.Nack(false, true)
 			case NackDiscard:
-				msg.Nack(false, true)
+				msg.Nack(true, false)
 			default:
 				log.Println("could not ack")
 			}
@@ -91,7 +91,7 @@ func DeclareAndBind(
 		queueType != SimpleQueueDurable,
 		queueType != SimpleQueueDurable,
 		false,
-		nil,
+		amqp.Table{"x-dead-letter-exchange": "peril_dlx"},
 	)
 	if err != nil {
 		return nil, amqp.Queue{}, err
