@@ -94,24 +94,3 @@ func main() {
 		}
 	}
 }
-
-func sendMessage(conn *amqp.Connection, key string) error {
-	publishCh, err := conn.Channel()
-	if err != nil {
-		return fmt.Errorf("could not create channel: %v", err)
-	}
-	isPaused := key == routing.PauseKey
-
-	err = pubsub.PublishJSON(
-		publishCh,
-		routing.ExchangePerilDirect,
-		routing.PauseKey,
-		routing.PlayingState{
-			IsPaused: isPaused,
-		},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to publish to channel: %v", err)
-	}
-	return nil
-}
