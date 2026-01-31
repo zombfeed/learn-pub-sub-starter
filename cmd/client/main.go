@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -99,12 +100,29 @@ func main() {
 		case "help":
 			gamelogic.PrintClientHelp()
 		case "spam":
-			log.Println("Spamming is not allowed yet!")
+			if len(input) != 2 {
+				fmt.Printf("expected: spam <amount>")
+				continue
+			}
+			n, err := strconv.Atoi(input[1])
+			if err != nil {
+				fmt.Printf("error: %s is not a valid number\n", input[1])
+				continue
+			}
+			for i := 0; i <= n; i++ {
+				msg := gamelogic.GetMaliciousLog()
+				err = publishGameLog(gameState, msg, publishCh)
+				if err != nil {
+					fmt.Printf("could not publish malicious log: %v", err)
+					continue
+				}
+			}
+			fmt.Printf("published %v malicious logs\n", n)
 		case "quit":
 			gamelogic.PrintQuit()
 			return
 		default:
-			log.Println("invalid command")
+			fmt.Println("invalid command")
 		}
 	}
 }
