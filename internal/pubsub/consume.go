@@ -1,9 +1,10 @@
 package pubsub
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -31,11 +32,50 @@ func SubscribeJSON[T any](
 	queueType SimpleQueueType,
 	handler func(T) AckType,
 ) error {
+	return subscribe[T](
+		conn, exchange, queueName, key, queueType, handler,
+		func(data []byte) (T, error) {
+			var target T
+			err := json.Unmarshal(data, &target)
+			return target, err
+		},
+	)
+}
+
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+) error {
+	return subscribe[T](
+		conn, exchange, queueName, key, queueType, handler,
+		func(data []byte) (T, error) {
+			buffer := bytes.NewBuffer(data)
+			decoder := gob.NewDecoder(buffer)
+			var target T
+			err := decoder.Decode(&target)
+			return target, err
+		},
+	)
+}
+
+func subscribe[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+	unmarshaller func([]byte) (T, error),
+) error {
 	ch, queue, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not declare and bind queue: %v", err)
 	}
-	del, err := ch.Consume(
+	deliveries, err := ch.Consume(
 		queue.Name,
 		"",
 		false,
@@ -50,12 +90,12 @@ func SubscribeJSON[T any](
 
 	handleDeliveries := func(deliveries <-chan amqp.Delivery) {
 		for msg := range deliveries {
-			var body T
-			if err := json.Unmarshal(msg.Body, &body); err != nil {
-				log.Println("could not unmarshal delivery")
+			target, err := unmarshaller(msg.Body)
+			if err != nil {
+				fmt.Printf("could not unmarshal message: %v\n", err)
 				continue
 			}
-			ack := handler(body)
+			ack := handler(target)
 			switch ack {
 			case Ack:
 				msg.Ack(false)
@@ -63,13 +103,11 @@ func SubscribeJSON[T any](
 				msg.Nack(false, true)
 			case NackDiscard:
 				msg.Nack(true, false)
-			default:
-				log.Println("could not ack")
 			}
 		}
 	}
 
-	go handleDeliveries(del)
+	go handleDeliveries(deliveries)
 	return nil
 }
 
