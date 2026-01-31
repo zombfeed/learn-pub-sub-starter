@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
@@ -61,10 +62,10 @@ func main() {
 		routing.WarRecognitionsPrefix,
 		routing.WarRecognitionsPrefix+".*",
 		pubsub.SimpleQueueDurable,
-		handlerWar(gameState),
+		handlerWar(gameState, publishCh),
 	)
 	if err != nil {
-		log.Fatalf("could not subscribe to army moves: %v", err)
+		log.Fatalf("could not subscribe to war: %v", err)
 	}
 
 	for {
@@ -106,4 +107,24 @@ func main() {
 			log.Println("invalid command")
 		}
 	}
+}
+
+func publishGameLog(gs *gamelogic.GameState, message string, publishCh *amqp.Channel) error {
+	gameLog := routing.GameLog{
+		CurrentTime: time.Now(),
+		Message:     message,
+		Username:    gs.GetUsername(),
+	}
+
+	err := pubsub.PublishGob(
+		publishCh,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug+"."+gs.GetUsername(),
+		gameLog,
+	)
+	if err != nil {
+		return fmt.Errorf("error: %v", err)
+	}
+
+	return nil
 }
